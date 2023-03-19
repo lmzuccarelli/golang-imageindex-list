@@ -14,17 +14,18 @@ import (
 )
 
 const (
-	operatorImageDir        string = "operator-images/"
-	releaseImageDir         string = "release-images/"
-	operatorImageExtractDir string = "hold-operators/"
-	releaseImageExtractDir  string = "hold-releases/"
-	blobsDir                string = "/blobs/sha256/"
+	operatorImageDir        string = "operator-images"
+	releaseImageDir         string = "release-images"
+	operatorImageExtractDir string = "hold-operators"
+	releaseImageExtractDir  string = "hold-releases"
+	blobsDir                string = "blobs/sha256"
 	errMsg                  string = "[Collect] %v "
 	dockerProtocol          string = "docker://"
 	ociProtocol             string = "oci://"
 	ociProtocolTrimmed      string = "oci:"
 	logsFile                string = "logs/util.log"
-	releaseJSONPath         string = "/release-manifests/image-references"
+	releaseJSONPath         string = "release-manifests/image-references"
+	releaseManifest         string = "release-manifests"
 )
 
 type CollectorInterface interface {
@@ -60,15 +61,18 @@ func (o *Collector) Collect() error {
 	hld := strings.Split(o.Opts.Global.Reference, "/")
 	imageIndexDir := strings.Replace(hld[len(hld)-1], ":", "/", -1)
 
-	if strings.Contains(imageIndexDir, "operator") {
-		if _, err := os.Stat(o.Opts.Global.Dir + operatorImageExtractDir + imageIndexDir); errors.Is(err, os.ErrNotExist) {
-			err := os.MkdirAll(o.Opts.Global.Dir+operatorImageDir+imageIndexDir, 0755)
+	if strings.Contains(o.Opts.Global.ImageIndex, "operator") {
+		// setup directory
+		cacheDir := strings.Join([]string{o.Opts.Global.Dir, operatorImageExtractDir, imageIndexDir}, "/")
+		if _, err := os.Stat(cacheDir); errors.Is(err, os.ErrNotExist) {
+			copyDir := strings.Join([]string{o.Opts.Global.Dir, operatorImageDir, imageIndexDir}, "/")
+			err := os.MkdirAll(copyDir, 0755)
 			if err != nil {
 				return err
 			}
 			o.Log.Info("copying %s image ", o.Opts.Global.Reference)
 			src := dockerProtocol + o.Opts.Global.Reference
-			dest := ociProtocolTrimmed + o.Opts.Global.Dir + operatorImageDir + imageIndexDir
+			dest := ociProtocolTrimmed + copyDir
 			err = o.Mirror.Run(context.TODO(), src, dest, "copy", &o.Opts, *writer)
 			writer.Flush()
 			if err != nil {
@@ -77,7 +81,7 @@ func (o *Collector) Collect() error {
 			}
 
 			// it's in oci format so we can go directly to the index.json file
-			oci, err := o.Manifest.GetImageIndex(o.Opts.Global.Dir + operatorImageDir + imageIndexDir)
+			oci, err := o.Manifest.GetImageIndex(copyDir)
 			if err != nil {
 				return err
 			}
@@ -94,14 +98,16 @@ func (o *Collector) Collect() error {
 			o.Log.Info("manifest %v", manifest)
 
 			// read the operator image manifest
-			oci, err = o.Manifest.GetImageManifest(o.Opts.Global.Dir + operatorImageDir + imageIndexDir + blobsDir + manifest)
+			manifestDir := strings.Join([]string{o.Opts.Global.Dir, operatorImageDir, imageIndexDir, blobsDir, manifest}, "/")
+			oci, err = o.Manifest.GetImageManifest(manifestDir)
 			if err != nil {
 				return err
 			}
 
 			// read the config digest to get the detailed manifest
 			// looking for the label to search for a specific folder
-			ocs, err := o.Manifest.GetOperatorConfig(o.Opts.Global.Dir + operatorImageDir + imageIndexDir + blobsDir + strings.Split(oci.Config.Digest, ":")[1])
+			catalogDir := strings.Join([]string{o.Opts.Global.Dir, operatorImageDir, imageIndexDir, blobsDir, strings.Split(oci.Config.Digest, ":")[1]}, "/")
+			ocs, err := o.Manifest.GetOperatorConfig(catalogDir)
 			if err != nil {
 				return err
 			}
@@ -111,45 +117,50 @@ func (o *Collector) Collect() error {
 
 			// untar all the blobs for the operator
 			// if the layer with "label (from previous step) is found to a specific folder"
-			err = o.Manifest.ExtractLayersOCI(o.Opts.Global.Dir+operatorImageDir+imageIndexDir+blobsDir, o.Opts.Global.Dir+operatorImageExtractDir+imageIndexDir, label, oci)
+			fromDir := strings.Join([]string{o.Opts.Global.Dir, operatorImageDir, imageIndexDir, blobsDir}, "/")
+			toDir := strings.Join([]string{o.Opts.Global.Dir, operatorImageExtractDir, imageIndexDir}, "/")
+			err = o.Manifest.ExtractLayersOCI(fromDir, toDir, label, oci)
 			if err != nil {
 				return err
 			}
 		}
 
-		files, err := os.ReadDir(o.Opts.Global.Dir + operatorImageExtractDir + imageIndexDir + label)
+		configsDir := strings.Join([]string{o.Opts.Global.Dir, operatorImageExtractDir, imageIndexDir, label}, "/")
+		files, err := os.ReadDir(configsDir)
 		if err != nil {
 			return err
 		}
 
 		o.Log.Debug("List channels for %s", o.Opts.Global.Reference)
-		o.Log.Debug("List of all operators in %s", operatorImageExtractDir+imageIndexDir+label)
+		o.Log.Debug("List of all operators in %s", configsDir)
 		for _, file := range files {
 			o.Log.Info("\x1b[1;95m %s \x1b[0m", file.Name())
-			err := o.Manifest.ListCatalogs(o.Opts.Global.Dir+operatorImageExtractDir+imageIndexDir, label, file.Name())
+			err := o.Manifest.ListCatalogs(configsDir, file.Name())
 			if err != nil {
 				o.Log.Error("%v", err)
 			}
 		}
 	}
 
-	if strings.Contains(imageIndexDir, "release") {
-		if _, err := os.Stat(o.Opts.Global.Dir + releaseImageExtractDir + imageIndexDir); errors.Is(err, os.ErrNotExist) {
-			err := os.MkdirAll(o.Opts.Global.Dir+releaseImageDir+imageIndexDir, 0755)
+	if strings.Contains(o.Opts.Global.ImageIndex, "release") {
+		// setup cache directory
+		cacheDir := strings.Join([]string{o.Opts.Global.Dir, releaseImageExtractDir, imageIndexDir}, "/")
+		if _, err := os.Stat(cacheDir); errors.Is(err, os.ErrNotExist) {
+			copyDir := strings.Join([]string{o.Opts.Global.Dir, releaseImageDir, imageIndexDir}, "/")
+			err := os.MkdirAll(copyDir, 0755)
 			if err != nil {
 				return err
 			}
 			o.Log.Info("copying %s image ", o.Opts.Global.Reference)
 			src := dockerProtocol + o.Opts.Global.Reference
-			dest := ociProtocolTrimmed + o.Opts.Global.Dir + releaseImageDir + imageIndexDir
+			dest := ociProtocolTrimmed + copyDir
 			err = o.Mirror.Run(context.TODO(), src, dest, "copy", &o.Opts, *writer)
 			writer.Flush()
 			if err != nil {
-				//o.Log.Error(errMsg, err)
 				return err
 			}
 
-			oci, err := o.Manifest.GetImageIndex(o.Opts.Global.Dir + releaseImageDir + imageIndexDir)
+			oci, err := o.Manifest.GetImageIndex(copyDir)
 			if err != nil {
 				o.Log.Error("[Collector] %v ", err)
 				return fmt.Errorf(errMsg, err)
@@ -162,30 +173,33 @@ func (o *Collector) Collect() error {
 			manifest := strings.Split(oci.Manifests[0].Digest, ":")[1]
 			o.Log.Debug("image index %v", manifest)
 
-			oci, err = o.Manifest.GetImageManifest(o.Opts.Global.Dir + releaseImageDir + imageIndexDir + blobsDir + manifest)
+			manifestDir := strings.Join([]string{copyDir, blobsDir, manifest}, "/")
+			oci, err = o.Manifest.GetImageManifest(manifestDir)
 			if err != nil {
 				return fmt.Errorf(errMsg, err)
 			}
 			o.Log.Debug("manifest %v ", oci.Config.Digest)
 			// untar all the blobs for the operator
 			// if the layer with "label (from previous step) is found to a specific folder"
-			err = o.Manifest.ExtractLayersOCI(o.Opts.Global.Dir+releaseImageDir+imageIndexDir+blobsDir, o.Opts.Global.Dir+releaseImageExtractDir+imageIndexDir, "release-manifests", oci)
+			fromDir := strings.Join([]string{o.Opts.Global.Dir, releaseImageDir, imageIndexDir, blobsDir}, "/")
+			toDir := strings.Join([]string{o.Opts.Global.Dir + releaseImageExtractDir + imageIndexDir}, "/")
+			err = o.Manifest.ExtractLayersOCI(fromDir, toDir, releaseManifest, oci)
 			if err != nil {
 				return err
 			}
 		}
 
 		o.Log.Debug("List release for %s", o.Opts.Global.Reference)
-		o.Log.Debug("List of all release artifacts in %s", releaseImageExtractDir+imageIndexDir+releaseJSONPath)
+		artifactsDir := strings.Join([]string{o.Opts.Global.Dir, releaseImageExtractDir, imageIndexDir, releaseJSONPath}, "/")
+		o.Log.Debug("List of all release artifacts in %s", artifactsDir)
 
-		allRelatedImages, err := o.Manifest.GetReleaseSchema(o.Opts.Global.Dir + releaseImageExtractDir + imageIndexDir + releaseJSONPath)
+		components, err := o.Manifest.GetReleaseSchema(artifactsDir)
 		if err != nil {
 			return err
 		}
-		for _, img := range allRelatedImages {
+		for _, img := range components {
 			o.Log.Info("\x1b[1;95m  %s \x1b[0m", img.Name)
 		}
-
 	}
 
 	return nil

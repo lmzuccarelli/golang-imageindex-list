@@ -269,3 +269,9 @@ type Options struct {
 	Reference string
 	Other     string
 }
+
+// CopyImagesSchema
+type CopyImagesSchema struct {
+	Source      string
+	Destination string
+}

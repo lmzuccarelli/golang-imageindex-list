@@ -3,7 +3,6 @@ package manifest
 import (
 	"testing"
 
-	"github.com/lmzuccarelli/golang-imageindex-list/pkg/api/v1alpha2"
 	"github.com/lmzuccarelli/golang-imageindex-list/pkg/api/v1alpha3"
 	clog "github.com/lmzuccarelli/golang-imageindex-list/pkg/log"
 )
@@ -40,16 +39,6 @@ func TestGetAllManifests(t *testing.T) {
 		log.Debug("completed test  %v ", res)
 	})
 
-	t.Run("Testing GetRelatedImagesFromCatalog : should pass", func(t *testing.T) {
-		manifest := &Manifest{Log: log}
-		res, err := manifest.GetRelatedImagesFromCatalog("../../tests/configs", "config")
-		if err != nil {
-			log.Error(" %v ", err)
-			t.Fatalf("should not fail")
-		}
-		log.Debug("completed test  %v ", res)
-	})
-
 	t.Run("Testing GetReleaseSchema : should pass", func(t *testing.T) {
 		manifest := &Manifest{Log: log}
 		res, err := manifest.GetReleaseSchema("../../tests/release-schema.json")
@@ -60,84 +49,6 @@ func TestGetAllManifests(t *testing.T) {
 		log.Debug("completed test  %v ", res)
 	})
 
-	t.Run("Testing GetRelatedImagesFromCatalogByFilter : should pass", func(t *testing.T) {
-		manifest := &Manifest{Log: log}
-		cfg := v1alpha2.Operator{
-			Catalog: "certified-operators:v4.7",
-			Full:    true,
-			IncludeConfig: v1alpha2.IncludeConfig{
-				Packages: []v1alpha2.IncludePackage{
-					{Name: "3scale-operator"},
-				},
-			},
-		}
-		filter := make(map[string]v1alpha3.ISCPackage)
-		iscp := v1alpha3.ISCPackage{Channel: "threescale-mas", MinVersion: "0.11.0", MaxVersion: "0.11.0"}
-		filter["3scale-operator"] = iscp
-		res, err := manifest.GetRelatedImagesFromCatalogByFilter("../../tests", "configs/", cfg, filter)
-		if err != nil {
-			log.Error(" %v ", err)
-			t.Fatalf("should not fail")
-		}
-		log.Debug("completed test  %v ", res)
-	})
-
-	t.Run("Testing GetRelatedImagesFromCatalogByFilter : should pass (with channels)", func(t *testing.T) {
-		manifest := &Manifest{Log: log}
-		cfg := v1alpha2.Operator{
-			Catalog: "certified-operators:v4.7",
-			Full:    true,
-			IncludeConfig: v1alpha2.IncludeConfig{
-				Packages: []v1alpha2.IncludePackage{
-					{
-						Name: "3scale-operator",
-						Channels: []v1alpha2.IncludeChannel{
-							{
-								Name: "threescale-mas",
-								IncludeBundle: v1alpha2.IncludeBundle{
-									MinVersion: "0.11.0",
-									MaxVersion: "0.11.0",
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		filter := make(map[string]v1alpha3.ISCPackage)
-		iscp := v1alpha3.ISCPackage{Channel: "threescale-mas", MinVersion: "0.11.0", MaxVersion: "0.11.0"}
-		filter["3scale-operator"] = iscp
-		res, err := manifest.GetRelatedImagesFromCatalogByFilter("../../tests", "configs/", cfg, filter)
-		if err != nil {
-			log.Error(" %v ", err)
-			t.Fatalf("should not fail")
-		}
-		log.Debug("completed test  %v ", res)
-	})
-
-	t.Run("Testing GetRelatedImagesFromCatalogByFilter : should pass (no channels)", func(t *testing.T) {
-		manifest := &Manifest{Log: log}
-		cfg := v1alpha2.Operator{
-			Catalog: "certified-operators:v4.7",
-			Full:    true,
-			IncludeConfig: v1alpha2.IncludeConfig{
-				Packages: []v1alpha2.IncludePackage{
-					{
-						Name: "3scale-operator",
-					},
-				},
-			},
-		}
-		filter := make(map[string]v1alpha3.ISCPackage)
-		iscp := v1alpha3.ISCPackage{}
-		filter["3scale-operator"] = iscp
-		res, err := manifest.GetRelatedImagesFromCatalogByFilter("../../tests", "configs/", cfg, filter)
-		if err != nil {
-			log.Error(" %v ", err)
-			t.Fatalf("should not fail")
-		}
-		log.Debug("completed test  %v ", res)
-	})
 }
 
 func TestExtractOCILayers(t *testing.T) {
@@ -184,8 +95,8 @@ func TestListCatalogs(t *testing.T) {
 
 	log := clog.New("debug")
 	t.Run("Testing ListCatalogs : should pass", func(t *testing.T) {
-		manifest := &Manifest{Log: log}
-		err := manifest.ListCatalogs("../../tests", "/configs", "3scale-operator")
+		manifest := New(log)
+		err := manifest.ListCatalogs("../../tests/configs", "3scale-operator")
 		if err != nil {
 			log.Error(" %v ", err)
 			t.Fatalf("should not fail")

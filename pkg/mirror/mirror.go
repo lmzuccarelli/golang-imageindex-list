@@ -21,7 +21,7 @@ const (
 
 // MirrorInterface  used to mirror images with container/images (skopeo)
 type MirrorInterface interface {
-	Run(ctx context.Context, src, dest, mode string, opts *CopyOptions, stdout bufio.Writer) (retErr error)
+	Run(ctx context.Context, src, dest, mode string, opts *CopyOptions, stdout bufio.Writer) error
 }
 
 type MirrorCopyInterface interface {
@@ -46,7 +46,7 @@ func NewMirrorCopy() MirrorCopyInterface {
 }
 
 // Run - method to copy images from source to destination
-func (o *Mirror) Run(ctx context.Context, src, dest, mode string, opts *CopyOptions, stdout bufio.Writer) (retErr error) {
+func (o *Mirror) Run(ctx context.Context, src, dest, mode string, opts *CopyOptions, stdout bufio.Writer) (err error) {
 	return o.copy(ctx, src, dest, opts, stdout)
 }
 
@@ -56,22 +56,18 @@ func (o *MirrorCopy) CopyImage(ctx context.Context, pc *signature.PolicyContext,
 
 // copy - copy images setup and execute
 func (o *Mirror) copy(ctx context.Context, src, dest string, opts *CopyOptions, out bufio.Writer) (retErr error) {
-
 	opts.DeprecatedTLSVerify.WarnIfUsed([]string{"--src-tls-verify", "--dest-tls-verify"})
-
 	opts.RemoveSignatures, _ = strconv.ParseBool("true")
-
 	if err := ReexecIfNecessaryForImages([]string{src, dest}...); err != nil {
 		return err
 	}
-
 	policyContext, err := opts.Global.GetPolicyContext()
 	if err != nil {
 		return fmt.Errorf("Error loading trust policy: %v", err)
 	}
 	defer func() {
 		if err := policyContext.Destroy(); err != nil {
-			//retErr = NoteCloseFailure(retErr, "tearing down policy context", err)
+			retErr = fmt.Errorf("%v", err)
 		}
 	}()
 

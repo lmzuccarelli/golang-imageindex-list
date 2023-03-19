@@ -55,13 +55,13 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/lmzuccarelli/golang-imageindex-list/pkg/cli/executor.go (62.9%)</option>
+				<option value="file0">github.com/lmzuccarelli/golang-imageindex-list/pkg/cli/executor.go (86.2%)</option>
 				
 				<option value="file1">github.com/lmzuccarelli/golang-imageindex-list/pkg/log/logger.go (85.7%)</option>
 				
-				<option value="file2">github.com/lmzuccarelli/golang-imageindex-list/pkg/manifest/manifest.go (82.4%)</option>
+				<option value="file2">github.com/lmzuccarelli/golang-imageindex-list/pkg/manifest/manifest.go (79.6%)</option>
 				
-				<option value="file3">github.com/lmzuccarelli/golang-imageindex-list/pkg/mirror/mirror.go (75.0%)</option>
+				<option value="file3">github.com/lmzuccarelli/golang-imageindex-list/pkg/mirror/mirror.go (73.2%)</option>
 				
 				<option value="file4">github.com/lmzuccarelli/golang-imageindex-list/pkg/mirror/options.go (88.5%)</option>
 				
@@ -83,6 +83,7 @@
 
 import (
         "fmt"
+        "io/fs"
         "os"
         "strings"
 
@@ -95,7 +96,7 @@ import (
 
 const (
         logsDir          string = "logs"
-        workingDir       string = "working-dir/"
+        workingDir       string = "working-dir"
         releaseImageDir  string = "release-images"
         operatorImageDir string = "operator-images"
         ociProtocol      string = "oci://"
@@ -108,7 +109,22 @@ type ExecutorSchema struct {
         Mirror    mirror.MirrorInterface
         Collector index.CollectorInterface
         Opts      mirror.CopyOptions
+        Dir       MakeDirectoryInterface
 }
+
+type MakeDirectoryInterface interface {
+        MakeDir(dir string, mode fs.FileMode) error
+}
+
+type MakeDirectory struct{}
+
+func NewDirectory() MakeDirectoryInterface <span class="cov8" title="1">{
+        return &amp;MakeDirectory{}
+}</span>
+
+func (o *MakeDirectory) MakeDir(dir string, mode fs.FileMode) error <span class="cov0" title="0">{
+        return os.MkdirAll(dir, mode)
+}</span>
 
 func NewCliCmd(log clog.PluggableLoggerInterface) *cobra.Command <span class="cov8" title="1">{
 
@@ -129,7 +145,6 @@ func NewCliCmd(log clog.PluggableLoggerInterface) *cobra.Command <span class="co
                 SrcImage:            srcOpts,
                 DestImage:           destOpts,
                 RetryOpts:           retryOpts,
-                Dev:                 false,
         }
 
         ex := &amp;ExecutorSchema{
@@ -180,31 +195,31 @@ func (o *ExecutorSchema) Run(cmd *cobra.Command, args []string) error <span clas
         os.RemoveAll(logsDir)
 
         // ensure working dir exists
-        err := os.MkdirAll(workingDir, 0755)
-        if err != nil </span><span class="cov0" title="0">{
+        err := o.Dir.MakeDir(workingDir, 0755)
+        if err != nil </span><span class="cov8" title="1">{
                 o.Log.Error(" %v ", err)
                 return err
         }</span>
 
         // create logs directory
-        <span class="cov8" title="1">err = os.MkdirAll(logsDir, 0755)
-        if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">err = o.Dir.MakeDir(logsDir, 0755)
+        if err != nil </span><span class="cov8" title="1">{
                 o.Log.Error(" %v ", err)
                 return err
         }</span>
 
         // create release cache dir
-        <span class="cov8" title="1">o.Log.Trace("creating release cache directory %s ", o.Opts.Global.Dir+releaseImageDir)
-        err = os.MkdirAll(o.Opts.Global.Dir+releaseImageDir, 0755)
-        if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">o.Log.Trace("creating release cache directory %s ", o.Opts.Global.Dir+"/"+releaseImageDir)
+        err = o.Dir.MakeDir(o.Opts.Global.Dir+"/"+releaseImageDir, 0755)
+        if err != nil </span><span class="cov8" title="1">{
                 o.Log.Error(" %v ", err)
                 return err
         }</span>
 
         // create operator cache dir
-        <span class="cov8" title="1">o.Log.Trace("creating operator cache directory %s ", o.Opts.Global.Dir+operatorImageDir)
-        err = os.MkdirAll(o.Opts.Global.Dir+operatorImageDir, 0755)
-        if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">o.Log.Trace("creating operator cache directory %s ", o.Opts.Global.Dir+"/"+operatorImageDir)
+        err = o.Dir.MakeDir(o.Opts.Global.Dir+"/"+operatorImageDir, 0755)
+        if err != nil </span><span class="cov8" title="1">{
                 o.Log.Error(" %v ", err)
                 return err
         }</span>
@@ -223,28 +238,28 @@ func (o *ExecutorSchema) Complete(args []string) <span class="cov8" title="1">{
         o.Manifest = manifest.New(o.Log)
         mc := mirror.NewMirrorCopy()
         o.Mirror = mirror.New(mc)
+        o.Dir = NewDirectory()
         o.Collector = index.New(o.Log, o.Manifest, o.Mirror, o.Opts)
-
 }</span>
 
 // Validate - cobra validation
 func (o *ExecutorSchema) Validate(imgIndex []string) error <span class="cov8" title="1">{
-        if o.Opts.Global.Reference == "" </span><span class="cov0" title="0">{
+        if o.Opts.Global.Reference == "" </span><span class="cov8" title="1">{
                 return fmt.Errorf("the flag --image-index is required - refer to example usage with --help")
         }</span>
         <span class="cov8" title="1">switch imgIndex[0] </span>{
-        case "operator":<span class="cov0" title="0">
-                if !strings.Contains(o.Opts.Global.Reference, "operator") </span><span class="cov0" title="0">{
+        case "operator":<span class="cov8" title="1">
+                if !strings.Contains(o.Opts.Global.Reference, "operator") </span><span class="cov8" title="1">{
                         return fmt.Errorf("ensure the --image-index is referencing an operator catalog")
                 }</span>
-        case "release":<span class="cov0" title="0">
-                if !strings.Contains(o.Opts.Global.Reference, "release") </span><span class="cov0" title="0">{
+        case "release":<span class="cov8" title="1">
+                if !strings.Contains(o.Opts.Global.Reference, "release") </span><span class="cov8" title="1">{
                         return fmt.Errorf("ensure the --image-index is referencing a release index")
                 }</span>
         default:<span class="cov8" title="1">
                 return fmt.Errorf("first argument must be either 'release' or 'operator'")</span>
         }
-        <span class="cov0" title="0">o.Log.Info("validate : image-index %v", imgIndex)
+        <span class="cov8" title="1">o.Log.Info("validate : image-index %v", imgIndex)
         return nil</span>
 }
 </pre>
@@ -321,8 +336,6 @@ import (
         "os"
         "strings"
 
-        "github.com/blang/semver"
-        "github.com/lmzuccarelli/golang-imageindex-list/pkg/api/v1alpha2"
         "github.com/lmzuccarelli/golang-imageindex-list/pkg/api/v1alpha3"
         clog "github.com/lmzuccarelli/golang-imageindex-list/pkg/log"
 )
@@ -331,25 +344,22 @@ const (
         index                   string = "index.json"
         catalogJson             string = "catalog.json"
         operatorImageExtractDir string = "hold-operator"
-        errorSemver             string = " semver %v "
 )
 
 type ManifestInterface interface {
         GetImageIndex(dir string) (*v1alpha3.OCISchema, error)
         GetImageManifest(file string) (*v1alpha3.OCISchema, error)
         GetOperatorConfig(file string) (*v1alpha3.OperatorConfigSchema, error)
-        GetRelatedImagesFromCatalog(filePath, label string) (map[string][]v1alpha3.RelatedImage, error)
-        GetRelatedImagesFromCatalogByFilter(filePath, label string, op v1alpha2.Operator, mp map[string]v1alpha3.ISCPackage) (map[string][]v1alpha3.RelatedImage, error)
         ExtractLayersOCI(filePath, toPath, label string, oci *v1alpha3.OCISchema) error
         GetReleaseSchema(filePath string) ([]v1alpha3.RelatedImage, error)
-        ListCatalogs(filePath, label string, op string) error
+        ListCatalogs(filePath, op string) error
 }
 
 type Manifest struct {
         Log clog.PluggableLoggerInterface
 }
 
-func New(log clog.PluggableLoggerInterface) ManifestInterface <span class="cov0" title="0">{
+func New(log clog.PluggableLoggerInterface) ManifestInterface <span class="cov8" title="1">{
         return &amp;Manifest{Log: log}
 }</span>
 
@@ -396,57 +406,6 @@ func (o *Manifest) GetOperatorConfig(file string) (*v1alpha3.OperatorConfigSchem
         <span class="cov8" title="1">return ocs, nil</span>
 }
 
-// operatorImageExtractDir + "/" + label
-// GetRelatedImagesFromCatalog
-func (o *Manifest) GetRelatedImagesFromCatalog(filePath, label string) (map[string][]v1alpha3.RelatedImage, error) <span class="cov8" title="1">{
-        relatedImages := make(map[string][]v1alpha3.RelatedImage)
-        files, err := os.ReadDir(filePath)
-        if err != nil </span><span class="cov0" title="0">{
-                return relatedImages, err
-        }</span>
-        <span class="cov8" title="1">for _, file := range files </span><span class="cov8" title="1">{
-                // the catalog.json - does not really conform to json standards
-                // this needs some thorough testing
-                olm, err := readOperatorCatalog(filePath + "/" + file.Name())
-                if err != nil </span><span class="cov0" title="0">{
-                        return relatedImages, err
-                }</span>
-                <span class="cov8" title="1">ri, err := getRelatedImageByDefaultChannel(o.Log, olm)
-                if err != nil </span><span class="cov0" title="0">{
-                        return relatedImages, err
-                }</span>
-                // append to relatedImages map
-                <span class="cov8" title="1">for k, v := range ri </span><span class="cov8" title="1">{
-                        relatedImages[k] = v
-                }</span>
-        }
-        <span class="cov8" title="1">return relatedImages, nil</span>
-}
-
-// GetRelatedImagesFromCatalogByFilter
-func (o *Manifest) GetRelatedImagesFromCatalogByFilter(filePath, label string, op v1alpha2.Operator, mp map[string]v1alpha3.ISCPackage) (map[string][]v1alpha3.RelatedImage, error) <span class="cov8" title="1">{
-        relatedImages := make(map[string][]v1alpha3.RelatedImage)
-        for _, pkg := range op.Packages </span><span class="cov8" title="1">{
-                // the catalog.json - does not really conform to json standards
-                // this needs some thorough testing
-                olm, err := readOperatorCatalog(filePath + "/" + label + "/" + pkg.Name)
-                if err != nil </span><span class="cov0" title="0">{
-                        return relatedImages, err
-                }</span>
-
-                <span class="cov8" title="1">ri, err := getRelatedImageByFilter(o.Log, olm, mp[pkg.Name])
-                if err != nil </span><span class="cov0" title="0">{
-                        return relatedImages, err
-                }</span>
-                // append to reletedImages map
-                <span class="cov8" title="1">for k, v := range ri </span><span class="cov8" title="1">{
-                        relatedImages[k] = v
-                }</span>
-                <span class="cov8" title="1">o.Log.Trace("related images %v", relatedImages)</span>
-        }
-        <span class="cov8" title="1">return relatedImages, nil</span>
-}
-
 // ExtractLayersOCI
 func (o *Manifest) ExtractLayersOCI(fromPath, toPath, label string, oci *v1alpha3.OCISchema) error <span class="cov8" title="1">{
         // first check if the labelled artifact is untarred
@@ -488,11 +447,11 @@ func (o *Manifest) GetReleaseSchema(filePath string) ([]v1alpha3.RelatedImage, e
         <span class="cov8" title="1">return allImages, nil</span>
 }
 
-// ListChannels
-func (o *Manifest) ListCatalogs(filePath, label string, op string) error <span class="cov8" title="1">{
+// ListCatalogs
+func (o *Manifest) ListCatalogs(filePath string, op string) error <span class="cov8" title="1">{
         // the catalog.json - does not really conform to json standards
         // this needs some thorough testing
-        olm, err := readOperatorCatalog(filePath + "/" + label + "/" + op)
+        olm, err := readOperatorCatalog(filePath + "/" + op)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
@@ -578,8 +537,6 @@ func untar(gzipStream io.Reader, path string, cfgDirName string) error <span cla
 // and unmarshals it to DeclarativeConfig struct
 func readOperatorCatalog(path string) ([]v1alpha3.DeclarativeConfig, error) <span class="cov8" title="1">{
         // the catalog.json - dos not really conform to json standards
-        // this needs some thorough testing
-        // operatorImageExtractDir + "/" + label + "/" + name + "/" + catalogJson
         var olm []v1alpha3.DeclarativeConfig
         data, err := os.ReadFile(path + "/" + catalogJson)
         if err != nil </span><span class="cov0" title="0">{
@@ -592,156 +549,6 @@ func readOperatorCatalog(path string) ([]v1alpha3.DeclarativeConfig, error) <spa
                 return []v1alpha3.DeclarativeConfig{}, err
         }</span>
         <span class="cov8" title="1">return olm, nil</span>
-}
-
-// getRelatedImageByDefaultChannel - get the DeclarativeConfig for the default channel
-// it returns the HEAD (latest version of the bundles relatedImages)
-func getRelatedImageByDefaultChannel(log clog.PluggableLoggerInterface, olm []v1alpha3.DeclarativeConfig) (map[string][]v1alpha3.RelatedImage, error) <span class="cov8" title="1">{
-        // relevant variables
-        relatedImages := make(map[string][]v1alpha3.RelatedImage)
-        bundles := make(map[string]bool)
-        var defaultChannel string
-
-        // iterate through the catalog objects
-        for i, obj := range olm </span><span class="cov8" title="1">{
-                switch </span>{
-                case obj.Schema == "olm.channel":<span class="cov8" title="1">
-                        if defaultChannel == obj.Name </span><span class="cov8" title="1">{
-                                log.Debug("found channel : %v", obj)
-                                log.Debug("bundle image to use : %v", obj.Entries[0].Name)
-                                name, err := semverFindMax(obj.Entries)
-                                if err != nil </span><span class="cov0" title="0">{
-                                        log.Error(errorSemver, err)
-                                }</span>
-                                <span class="cov8" title="1">bundles[name] = true</span>
-                        }
-                case obj.Schema == "olm.bundle":<span class="cov8" title="1">
-                        if bundles[obj.Name] </span><span class="cov8" title="1">{
-                                log.Debug("config bundle: %d %v", i, obj.Name)
-                                log.Trace("config relatedImages: %d %v", i, obj.RelatedImages)
-                                relatedImages[obj.Name] = obj.RelatedImages
-                        }</span>
-                case obj.Schema == "olm.package":<span class="cov8" title="1">
-                        log.Debug("Config package: %v", obj.Name)
-                        defaultChannel = obj.DefaultChannel</span>
-                }
-        }
-        <span class="cov8" title="1">return relatedImages, nil</span>
-}
-
-// getRelatedImageByFilter - get the DeclarativeConfig for a specifc channel with
-// min,max version if set
-func getRelatedImageByFilter(log clog.PluggableLoggerInterface, olm []v1alpha3.DeclarativeConfig, pkg v1alpha3.ISCPackage) (map[string][]v1alpha3.RelatedImage, error) <span class="cov8" title="1">{
-        // relevant variables
-        relatedImages := make(map[string][]v1alpha3.RelatedImage)
-        bundles := make(map[string]bool)
-        // iterate through the catalog objects
-        for i, obj := range olm </span><span class="cov8" title="1">{
-                switch </span>{
-                case obj.Schema == "olm.channel":<span class="cov8" title="1">
-                        if len(pkg.Channel) &gt; 0 </span><span class="cov8" title="1">{
-                                if pkg.Channel == obj.Name </span><span class="cov8" title="1">{
-                                        log.Debug("found channel : %v", obj)
-                                        name, err := semverFindRange(obj.Entries, pkg.MinVersion, pkg.MaxVersion)
-                                        if err != nil </span><span class="cov0" title="0">{
-                                                log.Error(errorSemver, err)
-                                        }</span>
-                                        <span class="cov8" title="1">for _, x := range name </span><span class="cov8" title="1">{
-                                                bundles[x] = true
-                                        }</span>
-                                }
-                        } else<span class="cov8" title="1"> {
-                                name, err := semverFindMax(obj.Entries)
-                                if err != nil </span><span class="cov0" title="0">{
-                                        log.Error(errorSemver, err)
-                                }</span>
-                                <span class="cov8" title="1">log.Debug("adding channel : %s", name)
-                                bundles[name] = true</span>
-                        }
-                case obj.Schema == "olm.bundle":<span class="cov8" title="1">
-                        if bundles[obj.Name] </span><span class="cov8" title="1">{
-                                log.Debug("config bundle: %d %v", i, obj.Name)
-                                log.Trace("config relatedImages: %d %v", i, obj.RelatedImages)
-                                relatedImages[obj.Name] = obj.RelatedImages
-                        }</span>
-                case obj.Schema == "olm.package":<span class="cov8" title="1">
-                        log.Debug("config package: %v", obj.Name)
-                        bundles[obj.DefaultChannel] = true</span>
-                }
-        }
-        <span class="cov8" title="1">return relatedImages, nil</span>
-}
-
-// semverFindMax - finds the max bundle version
-func semverFindMax(entries []v1alpha3.ChannelEntry) (string, error) <span class="cov8" title="1">{
-        var max semver.Version
-        var index int
-        for id, s := range entries </span><span class="cov8" title="1">{
-                hld := strings.Split(s.Name, ".")
-                // we are only interested in 1,2,3 positions
-                if len(hld) &lt; 4 </span><span class="cov0" title="0">{
-                        return "", fmt.Errorf("versioning of string is not correct %s ", s.Name)
-                }</span>
-                <span class="cov8" title="1">hld[1] = strings.Replace(hld[1], "v", "", -1)
-                end := strings.Split(hld[3], "-")
-                semStr := strings.Join([]string{hld[1], hld[2], end[0]}, ".")
-                version, err := semver.Parse(semStr)
-                if err != nil </span><span class="cov0" title="0">{
-                        return "", err
-                }</span>
-
-                <span class="cov8" title="1">if version.Compare(max) == 1 </span><span class="cov8" title="1">{
-                        max = version
-                        index = id
-                }</span>
-        }
-        <span class="cov8" title="1">return entries[index].Name, nil</span>
-}
-
-// semverFindRange - finds the bundles between ranges version
-func semverFindRange(entries []v1alpha3.ChannelEntry, min, max string) ([]string, error) <span class="cov8" title="1">{
-
-        var minVersion semver.Version
-        var maxVersion semver.Version
-        var err error
-        var results []string
-
-        // parse the min max strings
-        if len(min) &gt; 0 </span><span class="cov8" title="1">{
-                minVersion, err = semver.Parse(min)
-                if err != nil </span><span class="cov0" title="0">{
-                        return []string{}, err
-                }</span>
-        } else<span class="cov0" title="0"> {
-                minVersion, _ = semver.Parse("0.0.0")
-        }</span>
-        <span class="cov8" title="1">if len(max) &gt; 0 </span><span class="cov8" title="1">{
-                maxVersion, err = semver.Parse(max)
-                if err != nil </span><span class="cov0" title="0">{
-                        return []string{}, err
-                }</span>
-        } else<span class="cov0" title="0"> {
-                maxVersion, _ = semver.Parse("9.9.9")
-        }</span>
-
-        <span class="cov8" title="1">for _, s := range entries </span><span class="cov8" title="1">{
-                hld := strings.Split(s.Name, ".")
-                // we are only interested in 1,2,3 positions
-                if len(hld) &lt; 4 </span><span class="cov0" title="0">{
-                        return []string{}, fmt.Errorf("versioning of string is not correct %s ", s.Name)
-                }</span>
-                <span class="cov8" title="1">hld[1] = strings.Replace(hld[1], "v", "", -1)
-                end := strings.Split(hld[3], "-")
-                semStr := strings.Join([]string{hld[1], hld[2], end[0]}, ".")
-                version, err := semver.Parse(semStr)
-                if err != nil </span><span class="cov0" title="0">{
-                        return []string{}, err
-                }</span>
-                <span class="cov8" title="1">if version.Compare(maxVersion) &lt;= 0 &amp;&amp; version.Compare(minVersion) &gt;= 0 </span><span class="cov8" title="1">{
-                        results = append(results, s.Name)
-                }</span>
-        }
-        <span class="cov8" title="1">return results, nil</span>
 }
 </pre>
 		
@@ -768,7 +575,7 @@ const (
 
 // MirrorInterface  used to mirror images with container/images (skopeo)
 type MirrorInterface interface {
-        Run(ctx context.Context, src, dest, mode string, opts *CopyOptions, stdout bufio.Writer) (retErr error)
+        Run(ctx context.Context, src, dest, mode string, opts *CopyOptions, stdout bufio.Writer) error
 }
 
 type MirrorCopyInterface interface {
@@ -793,7 +600,7 @@ func NewMirrorCopy() MirrorCopyInterface <span class="cov0" title="0">{
 }</span>
 
 // Run - method to copy images from source to destination
-func (o *Mirror) Run(ctx context.Context, src, dest, mode string, opts *CopyOptions, stdout bufio.Writer) (retErr error) <span class="cov8" title="1">{
+func (o *Mirror) Run(ctx context.Context, src, dest, mode string, opts *CopyOptions, stdout bufio.Writer) (err error) <span class="cov8" title="1">{
         return o.copy(ctx, src, dest, opts, stdout)
 }</span>
 
@@ -803,22 +610,18 @@ func (o *MirrorCopy) CopyImage(ctx context.Context, pc *signature.PolicyContext,
 
 // copy - copy images setup and execute
 func (o *Mirror) copy(ctx context.Context, src, dest string, opts *CopyOptions, out bufio.Writer) (retErr error) <span class="cov8" title="1">{
-
         opts.DeprecatedTLSVerify.WarnIfUsed([]string{"--src-tls-verify", "--dest-tls-verify"})
-
         opts.RemoveSignatures, _ = strconv.ParseBool("true")
-
         if err := ReexecIfNecessaryForImages([]string{src, dest}...); err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-
         <span class="cov8" title="1">policyContext, err := opts.Global.GetPolicyContext()
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("Error loading trust policy: %v", err)
         }</span>
         <span class="cov8" title="1">defer func() </span><span class="cov8" title="1">{
-                if err := policyContext.Destroy(); err != nil </span>{<span class="cov0" title="0">
-                        //retErr = NoteCloseFailure(retErr, "tearing down policy context", err)
+                if err := policyContext.Destroy(); err != nil </span><span class="cov0" title="0">{
+                        retErr = fmt.Errorf("%v", err)
                 }</span>
         }()
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -14,7 +15,7 @@ import (
 
 const (
 	logsDir          string = "logs"
-	workingDir       string = "working-dir/"
+	workingDir       string = "working-dir"
 	releaseImageDir  string = "release-images"
 	operatorImageDir string = "operator-images"
 	ociProtocol      string = "oci://"
@@ -27,6 +28,21 @@ type ExecutorSchema struct {
 	Mirror    mirror.MirrorInterface
 	Collector index.CollectorInterface
 	Opts      mirror.CopyOptions
+	Dir       MakeDirectoryInterface
+}
+
+type MakeDirectoryInterface interface {
+	MakeDir(dir string, mode fs.FileMode) error
+}
+
+type MakeDirectory struct{}
+
+func NewDirectory() MakeDirectoryInterface {
+	return &MakeDirectory{}
+}
+
+func (o *MakeDirectory) MakeDir(dir string, mode fs.FileMode) error {
+	return os.MkdirAll(dir, mode)
 }
 
 func NewCliCmd(log clog.PluggableLoggerInterface) *cobra.Command {
@@ -48,7 +64,6 @@ func NewCliCmd(log clog.PluggableLoggerInterface) *cobra.Command {
 		SrcImage:            srcOpts,
 		DestImage:           destOpts,
 		RetryOpts:           retryOpts,
-		Dev:                 false,
 	}
 
 	ex := &ExecutorSchema{
@@ -99,30 +114,30 @@ func (o *ExecutorSchema) Run(cmd *cobra.Command, args []string) error {
 	os.RemoveAll(logsDir)
 
 	// ensure working dir exists
-	err := os.MkdirAll(workingDir, 0755)
+	err := o.Dir.MakeDir(workingDir, 0755)
 	if err != nil {
 		o.Log.Error(" %v ", err)
 		return err
 	}
 
 	// create logs directory
-	err = os.MkdirAll(logsDir, 0755)
+	err = o.Dir.MakeDir(logsDir, 0755)
 	if err != nil {
 		o.Log.Error(" %v ", err)
 		return err
 	}
 
 	// create release cache dir
-	o.Log.Trace("creating release cache directory %s ", o.Opts.Global.Dir+releaseImageDir)
-	err = os.MkdirAll(o.Opts.Global.Dir+releaseImageDir, 0755)
+	o.Log.Trace("creating release cache directory %s ", o.Opts.Global.Dir+"/"+releaseImageDir)
+	err = o.Dir.MakeDir(o.Opts.Global.Dir+"/"+releaseImageDir, 0755)
 	if err != nil {
 		o.Log.Error(" %v ", err)
 		return err
 	}
 
 	// create operator cache dir
-	o.Log.Trace("creating operator cache directory %s ", o.Opts.Global.Dir+operatorImageDir)
-	err = os.MkdirAll(o.Opts.Global.Dir+operatorImageDir, 0755)
+	o.Log.Trace("creating operator cache directory %s ", o.Opts.Global.Dir+"/"+operatorImageDir)
+	err = o.Dir.MakeDir(o.Opts.Global.Dir+"/"+operatorImageDir, 0755)
 	if err != nil {
 		o.Log.Error(" %v ", err)
 		return err
@@ -142,8 +157,8 @@ func (o *ExecutorSchema) Complete(args []string) {
 	o.Manifest = manifest.New(o.Log)
 	mc := mirror.NewMirrorCopy()
 	o.Mirror = mirror.New(mc)
+	o.Dir = NewDirectory()
 	o.Collector = index.New(o.Log, o.Manifest, o.Mirror, o.Opts)
-
 }
 
 // Validate - cobra validation

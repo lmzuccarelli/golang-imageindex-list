@@ -3,9 +3,12 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"strings"
 	"testing"
 
 	clog "github.com/lmzuccarelli/golang-imageindex-list/pkg/log"
+	"github.com/lmzuccarelli/golang-imageindex-list/pkg/manifest"
 	"github.com/lmzuccarelli/golang-imageindex-list/pkg/mirror"
 	"github.com/spf13/cobra"
 )
@@ -38,20 +41,98 @@ func TestExecutor(t *testing.T) {
 	// this test should cover over 80%
 	t.Run("Testing Executor : should pass", func(t *testing.T) {
 		collector := &Collector{Log: log, Opts: opts, Fail: false}
+		manifest := manifest.New(log)
 		ex := &ExecutorSchema{
 			Log:       log,
 			Opts:      opts,
 			Collector: collector,
+			Manifest:  manifest,
+			Dir:       &mockMakeDirectory{Fail: [4]bool{false, false, false, false}},
 		}
 
 		res := &cobra.Command{}
 		res.SetContext(context.Background())
 		res.SilenceUsage = true
-		ex.Opts.Mode = "mirrorToDisk"
 		err := ex.Run(res, []string{"oci://test"})
 		if err != nil {
 			log.Error(" %v ", err)
 			t.Fatalf("should not fail")
+		}
+	})
+
+	t.Run("Testing Executor : should fail (mkdir[0] forced error)", func(t *testing.T) {
+		collector := &Collector{Log: log, Opts: opts, Fail: false}
+		ex := &ExecutorSchema{
+			Log:       log,
+			Opts:      opts,
+			Collector: collector,
+			Dir:       &mockMakeDirectory{Fail: [4]bool{true, false, false, false}},
+		}
+
+		res := &cobra.Command{}
+		res.SetContext(context.Background())
+		res.SilenceUsage = true
+		err := ex.Run(res, []string{"oci://test"})
+		if err == nil {
+			log.Error(" %v ", err)
+			t.Fatalf("should fail")
+		}
+	})
+
+	t.Run("Testing Executor : should fail (mkdir[1] forced error)", func(t *testing.T) {
+		collector := &Collector{Log: log, Opts: opts, Fail: false}
+		ex := &ExecutorSchema{
+			Log:       log,
+			Opts:      opts,
+			Collector: collector,
+			Dir:       &mockMakeDirectory{Fail: [4]bool{false, true, false, false}},
+		}
+
+		res := &cobra.Command{}
+		res.SetContext(context.Background())
+		res.SilenceUsage = true
+		err := ex.Run(res, []string{"oci://test"})
+		if err == nil {
+			log.Error(" %v ", err)
+			t.Fatalf("should fail")
+		}
+	})
+
+	t.Run("Testing Executor : should fail (mkdir[2] forced error)", func(t *testing.T) {
+		collector := &Collector{Log: log, Opts: opts, Fail: false}
+		ex := &ExecutorSchema{
+			Log:       log,
+			Opts:      opts,
+			Collector: collector,
+			Dir:       &mockMakeDirectory{Fail: [4]bool{false, false, true, false}},
+		}
+
+		res := &cobra.Command{}
+		res.SetContext(context.Background())
+		res.SilenceUsage = true
+		err := ex.Run(res, []string{"oci://test"})
+		if err == nil {
+			log.Error(" %v ", err)
+			t.Fatalf("should fail")
+		}
+	})
+
+	t.Run("Testing Executor : should fail (mkdir[3] forced error)", func(t *testing.T) {
+		collector := &Collector{Log: log, Opts: opts, Fail: false}
+		ex := &ExecutorSchema{
+			Log:       log,
+			Opts:      opts,
+			Collector: collector,
+			Dir:       &mockMakeDirectory{Fail: [4]bool{false, false, false, true}},
+		}
+
+		res := &cobra.Command{}
+		res.SetContext(context.Background())
+		res.SilenceUsage = true
+		err := ex.Run(res, []string{"oci://test"})
+		if err == nil {
+			log.Error(" %v ", err)
+			t.Fatalf("should fail")
 		}
 	})
 
@@ -66,7 +147,6 @@ func TestExecutor(t *testing.T) {
 		res := &cobra.Command{}
 		res.SetContext(context.Background())
 		res.SilenceUsage = true
-		ex.Opts.Mode = "mirrorToDisk"
 		ex.Complete([]string{"operator"})
 	})
 
@@ -76,6 +156,7 @@ func TestExecutor(t *testing.T) {
 			Log:       log,
 			Opts:      opts,
 			Collector: collector,
+			Dir:       &mockMakeDirectory{Fail: [4]bool{false, false, false, false}},
 		}
 
 		res := &cobra.Command{}
@@ -87,20 +168,6 @@ func TestExecutor(t *testing.T) {
 		}
 	})
 
-	/*
-		t.Run("Testing Executor : should pass", func(t *testing.T) {
-			opts.Global.Reference = "test-release-index:v0.0.1"
-			res := NewCliCmd(log)
-			res.SilenceUsage = true
-			res.SetArgs([]string{"release"})
-			err := res.Execute()
-			if err != nil {
-				log.Error(" %v ", err)
-				t.Fatalf("should not fail")
-			}
-		})
-	*/
-
 	t.Run("Testing Executor : should pass", func(t *testing.T) {
 		collector := &Collector{Log: log, Opts: opts, Fail: false}
 		opts.Global.Reference = "test-operator-index:v0.0.1"
@@ -108,6 +175,7 @@ func TestExecutor(t *testing.T) {
 			Log:       log,
 			Opts:      opts,
 			Collector: collector,
+			Dir:       &mockMakeDirectory{Fail: [4]bool{false, false, false, false}},
 		}
 		res := NewCliCmd(log)
 		res.SilenceUsage = true
@@ -118,7 +186,7 @@ func TestExecutor(t *testing.T) {
 		}
 	})
 
-	t.Run("Testing Executor : should fail", func(t *testing.T) {
+	t.Run("Testing Validate : should fail", func(t *testing.T) {
 		ex := &ExecutorSchema{
 			Log:  log,
 			Opts: opts,
@@ -130,14 +198,75 @@ func TestExecutor(t *testing.T) {
 			t.Fatalf("should fail")
 		}
 	})
+
+	t.Run("Testing Validate : should fail", func(t *testing.T) {
+		opts.Global.Reference = "test-operator-index:v0.0.1"
+		ex := &ExecutorSchema{
+			Log:  log,
+			Opts: opts,
+		}
+		res := NewCliCmd(log)
+		res.SilenceUsage = true
+		err := ex.Validate([]string{"release"})
+		if err == nil {
+			t.Fatalf("should fail")
+		}
+	})
+
+	t.Run("Testing Validate : should fail", func(t *testing.T) {
+		opts.Global.Reference = "test-release-index:v0.0.1"
+		ex := &ExecutorSchema{
+			Log:  log,
+			Opts: opts,
+		}
+		res := NewCliCmd(log)
+		res.SilenceUsage = true
+		err := ex.Validate([]string{"operator"})
+		if err == nil {
+			t.Fatalf("should fail")
+		}
+	})
+
+	t.Run("Testing Validate : should fail", func(t *testing.T) {
+		opts.Global.Reference = ""
+		ex := &ExecutorSchema{
+			Log:  log,
+			Opts: opts,
+		}
+		res := NewCliCmd(log)
+		res.SilenceUsage = true
+		err := ex.Validate([]string{"operator"})
+		if err == nil {
+			t.Fatalf("should fail")
+		}
+	})
+
+	t.Run("Testing Validate : should pass", func(t *testing.T) {
+		opts.Global.Reference = "test-release-index:v0.0.1"
+		ex := &ExecutorSchema{
+			Log:  log,
+			Opts: opts,
+		}
+		res := NewCliCmd(log)
+		res.SilenceUsage = true
+		err := ex.Validate([]string{"release"})
+		if err != nil {
+			t.Fatalf("should not fail")
+		}
+	})
+
 }
 
 // setup mocks
 
 type Mirror struct{}
 
+type mockMakeDirectory struct {
+	Fail [4]bool
+}
+
 // for this test scenario we only need to mock
-// ReleaseImageCollector, OperatorImageCollector and Batchr
+// ReleaseImageCollector, OperatorImageCollector and Batch
 type Collector struct {
 	Log  clog.PluggableLoggerInterface
 	Opts mirror.CopyOptions
@@ -147,6 +276,20 @@ type Collector struct {
 func (o *Collector) Collect() error {
 	if o.Fail {
 		return fmt.Errorf("forced error operator collector")
+	}
+	return nil
+}
+
+func (o *mockMakeDirectory) MakeDir(dir string, mode fs.FileMode) error {
+	switch {
+	case strings.Contains(dir, "working") && o.Fail[0]:
+		return fmt.Errorf("forced create working directory error")
+	case strings.Contains(dir, "logs") && o.Fail[1]:
+		return fmt.Errorf("forced create logs directory error")
+	case strings.Contains(dir, "operator") && o.Fail[2]:
+		return fmt.Errorf("forced create operator directory error")
+	case strings.Contains(dir, "release") && o.Fail[3]:
+		return fmt.Errorf("forced create release directory error")
 	}
 	return nil
 }
